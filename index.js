@@ -1,10 +1,73 @@
-const express = require('express');
 // import express from 'express';
+const express = require('express');
+// const bodyParser = require('body-parser');  // (deprecated)
+const mongoose = require('mongoose');
+const multer = require('multer');
+const path = require('path');
 
-const server = express();
+const app = express();
+const productRoutes = require('./src/routes/products');
+const authRoutes = require('./src/routes/auth');
+const blogRoutes = require('./src/routes/blog');
 
-server.use(() => {
-	console.log('Hello Server..');
+const fileStorage = multer.diskStorage({
+	destination: (req, file, cb) => {
+		cb(null, 'images');
+	},
+	filename: (req, file, cb) => {
+		// cb(null, new Date().getTime() + '-' + file.originalname);
+		cb(null, `${new Date().getTime()}-${file.originalname}`);
+	},
 });
 
-server.listen(4000);
+const fileFilter = (req, file, cb) => {
+	if (
+		file.mimetype === 'image/png' ||
+		file.mimetype === 'image/jpg' ||
+		file.mimetype === 'image/jpeg'
+	) {
+		cb(null, true);
+	} else {
+		cb(null, false);
+	}
+};
+
+// app.use(bodyParser.json()); // type JSON (deprecated)
+app.use(express.json());
+app.use('/images', express.static(path.join(__dirname, 'images')));
+app.use(
+	multer({ storage: fileStorage, fileFilter: fileFilter }).single('image')
+);
+
+// const cors = require('cors');
+app.use((req, res, next) => {
+	// res.setHeader('Access-Control-Allow-Origin', 'https://codepen.io');
+	res.setHeader('Access-Control-Allow-Origin', '*');
+	res.setHeader(
+		'Access-Control-Allow-Methods',
+		'GET, POST, PUT, PATCH, DELETE, OPTIONS'
+	);
+	res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+	next();
+});
+
+app.use('/v1/customer', productRoutes);
+app.use('/v1/auth', authRoutes);
+app.use('/v1/blog', blogRoutes);
+
+app.use((error, req, res, next) => {
+	const status = error.errorStatus || 500;
+	const message = error.message;
+	const data = error.data;
+
+	res.status(status).json({ message: message, data: data });
+});
+
+mongoose
+	.connect(
+		'mongodb+srv://reynaldi:6EqEX8h60zUrZ8Yq@cluster0.gtrwp.mongodb.net/MERN-Blog-Db?retryWrites=true&w=majority'
+	)
+	.then(() => {
+		app.listen(4000, () => console.log('Connection Success'));
+	})
+	.catch((err) => console.log(err));
